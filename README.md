@@ -15,7 +15,7 @@ Do not use in production (yet).
 ## Features
 The filter currently supports:
 
-- IP address greylisting
+- IPv4 and IPv6 address greylisting
 - SPF greylisting
 - startup whitelisting of IP and domains
 - automatically renewed whitelisting
