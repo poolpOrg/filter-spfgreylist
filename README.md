@@ -17,7 +17,8 @@ The filter currently supports:
 
 - IP address greylisting
 - SPF greylisting
-- renewed whitelisting
+- startup whitelisting of IP and domains
+- automatically renewed whitelisting
 
 
 ## Dependencies
