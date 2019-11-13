@@ -306,6 +306,37 @@ func loadWhitelists() {
 	}
 }
 
+func listsManager() {
+	tick := time.Tick(1 * 1000 * time.Millisecond)
+	for {
+		select {
+		case <- tick:
+			now := int64(time.Now().Unix())
+
+			for key, value := range greylist_src {
+				if now - value > *greyexp {
+					delete(greylist_src, key)
+				}
+			}
+			for key, value := range greylist_domain {
+				if now - value > *greyexp {
+					delete(greylist_domain, key)
+				}
+			}
+			for key, value := range whitelist_src {
+				if now - value > *whiteexp {
+					delete(whitelist_src, key)
+				}
+			}
+			for key, value := range whitelist_domain {
+				if now - value > *whiteexp {
+					delete(whitelist_domain, key)
+				}
+			}
+		}
+	}
+}
+
 func main() {
 	passtime  = flag.Int64("passtime", 300, "number of seconds before retries are accounted (default: 300)")
 	greyexp   = flag.Int64("greyexp", 4*3600, "number of seconds before greylist attempts expire (default: 4 hours)")
@@ -316,6 +347,7 @@ func main() {
 	flag.Parse()
 
 	loadWhitelists()
+	go listsManager()
 
 	scanner := bufio.NewScanner(os.Stdin)
 
