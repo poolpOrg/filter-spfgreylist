@@ -55,6 +55,8 @@ var greylist_domain = make(map[string]int64)
 var passtime	*int64
 var greyexp	*int64
 var whiteexp	*int64
+var ip_wl	*string
+var domain_wl	*string
 
 var reporters = map[string]func(*session, []string){
 	"link-connect":    linkConnect,
@@ -267,12 +269,57 @@ func skipConfig(scanner *bufio.Scanner) {
 	}
 }
 
+func loadWhitelists() {
+	now := int64(time.Now().Unix())
+
+	if *ip_wl != "" {
+		file, err := os.Open(*ip_wl)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			fmt.Fprintf(os.Stderr, "IP %s added to whitelist\n", scanner.Text())
+			key := fmt.Sprintf("ip=%s", scanner.Text())
+			whitelist_src[key] = now
+		}
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if *domain_wl != "" {
+		file, err := os.Open(*domain_wl)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", scanner.Text())
+			key := fmt.Sprintf("domain=%s", scanner.Text())
+			whitelist_domain[key] = now
+		}
+	
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func main() {
-	passtime = flag.Int64("passtime", 300, "number of seconds before retries are accounted (default: 300)")
-	greyexp  = flag.Int64("greyexp", 4*3600, "number of seconds before greylist attempts expire (default: 4 hours)")
-	whiteexp = flag.Int64("whiteexp", 30*86400, "number of seconds before whitelists expire (default: 30 days)")
+	passtime  = flag.Int64("passtime", 300, "number of seconds before retries are accounted (default: 300)")
+	greyexp   = flag.Int64("greyexp", 4*3600, "number of seconds before greylist attempts expire (default: 4 hours)")
+	whiteexp  = flag.Int64("whiteexp", 30*86400, "number of seconds before whitelists expire (default: 30 days)")
+	ip_wl     = flag.String("wl-ip", "", "filename containing a list of IP addresses to whitelist, one per line")
+	domain_wl = flag.String("wl-domain", "", "filename containing a list of sender domains to whitelist, one per line")
 
 	flag.Parse()
+
+	loadWhitelists()
 
 	scanner := bufio.NewScanner(os.Stdin)
 
