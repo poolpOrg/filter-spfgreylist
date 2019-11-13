@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"log"
@@ -48,9 +49,14 @@ var sessions = make(map[string]*session)
 
 var whitelist_src = make(map[string]int64)
 var whitelist_domain = make(map[string]int64)
+var wl_src_mux sync.Mutex
+var wl_dom_mux sync.Mutex
 
 var greylist_src = make(map[string]int64)
 var greylist_domain = make(map[string]int64)
+var gl_src_mux sync.Mutex
+var gl_dom_mux sync.Mutex
+
 
 var passtime	*int64
 var greyexp	*int64
@@ -156,6 +162,9 @@ func rcptTo(s *session, params []string) {
 		return
 	}
 
+	wl_src_mux.Lock()
+	defer wl_src_mux.Unlock()
+
 	key := fmt.Sprintf("ip=%s", s.ip.String())
 	if val, ok := whitelist_src[key]; ok {
 		if s.tm - val < *whiteexp {
@@ -165,6 +174,9 @@ func rcptTo(s *session, params []string) {
 			return
 		}
 	}
+
+	wl_dom_mux.Lock()
+	defer wl_dom_mux.Unlock()
 
 	key = fmt.Sprintf("domain=%s", s.fromDomain)
 	if val, ok := whitelist_domain[key]; ok {
@@ -190,12 +202,18 @@ func spfResolve(s *session, token string) {
 
 	if (!spfAware) {
 		key := fmt.Sprintf("ip=%s:%s:%s", s.ip.String(), s.mailFrom, s.rcptTo)
+		gl_src_mux.Lock()
+		defer gl_src_mux.Unlock()
 		if val, ok := greylist_src[key]; ok {
 			delta := s.tm - val
 			if val != s.tm && delta < *greyexp && delta > *passtime {
 				fmt.Fprintf(os.Stderr, "IP %s added to whitelist\n", s.ip.String())
 				fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
 				key = fmt.Sprintf("ip=%s", s.ip.String())
+
+				wl_src_mux.Lock()
+				defer wl_src_mux.Unlock()
+
 				whitelist_src[key] = s.tm
 				s.ok = true
 				return
@@ -208,6 +226,8 @@ func spfResolve(s *session, token string) {
 		return
 	}		
 
+	gl_dom_mux.Lock()
+	defer gl_dom_mux.Unlock()
 	key := fmt.Sprintf("domain=%s:%s:%s", s.fromDomain, s.mailFrom, s.rcptTo)
 	if val, ok := greylist_domain[key]; ok {
 		delta := s.tm - val
@@ -215,6 +235,10 @@ func spfResolve(s *session, token string) {
 			fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", s.fromDomain)
 			fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
 			key = fmt.Sprintf("domain=%s", s.fromDomain)
+
+			wl_dom_mux.Lock()
+			defer wl_dom_mux.Unlock()
+
 			whitelist_domain[key] = s.tm
 			s.ok = true
 			return
@@ -313,26 +337,37 @@ func listsManager() {
 		case <- tick:
 			now := int64(time.Now().Unix())
 
+			gl_src_mux.Lock()
 			for key, value := range greylist_src {
 				if now - value > *greyexp {
 					delete(greylist_src, key)
 				}
 			}
+			gl_src_mux.Unlock()
+
+			gl_dom_mux.Lock()
 			for key, value := range greylist_domain {
 				if now - value > *greyexp {
 					delete(greylist_domain, key)
 				}
 			}
+			gl_dom_mux.Unlock()
+			
+			wl_src_mux.Lock()
 			for key, value := range whitelist_src {
 				if now - value > *whiteexp {
 					delete(whitelist_src, key)
 				}
 			}
+			wl_src_mux.Unlock()
+
+			wl_dom_mux.Lock()
 			for key, value := range whitelist_domain {
 				if now - value > *whiteexp {
 					delete(whitelist_domain, key)
 				}
 			}
+			wl_dom_mux.Unlock()
 		}
 	}
 }
