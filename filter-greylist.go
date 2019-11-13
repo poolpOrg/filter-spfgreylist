@@ -86,7 +86,7 @@ func linkConnect(s *session, params []string) {
 	tmp := strings.Split(src, ":")
 	tmp = tmp[0:len(tmp)-1]
 	src = strings.Join(tmp, ":")
-	if tmp[0] == "[" {
+	if strings.HasPrefix(src, "[") {
 		src = src[1:len(src)-1]
 	}
 
