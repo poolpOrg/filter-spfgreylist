@@ -84,10 +84,6 @@ func linkConnect(s *session, params []string) {
 		src = src[1:len(src)-1]
 	}
 
-	//
-	src = "45.76.46.201"
-	//
-	
 	s.ip = net.ParseIP(src)
 	if s.ip == nil {
 		fmt.Fprintf(os.Stderr, "connection from local socket, session whitelisted\n")
