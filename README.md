@@ -59,3 +59,9 @@ It is possible to tweak the greylisting parameters, here listed with default val
 - `-passtime 300` accept greylisting retries only after 5 minutes from initial attempt
 - `-greyexp 14400` expire greylisting attempts after 4 hours without a retry
 - `-whiteexp 2592000` expire whitelisting after 30 days without any attempt at delivery
+
+
+It is also possible to inject IP and domains in the whitelists at startup to avoid greylisting:
+
+- `-wl-ip <filename>` inject IP addresses listed, one per line, in the parameter file to the whitelist
+- `-wl-domain <filename>` inject domains listed, one per line, in the parameter file to the whitelist
