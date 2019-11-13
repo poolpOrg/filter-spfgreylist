@@ -2,14 +2,22 @@
 
 ## Description
 This filter implements greylisting, allowing OpenSMTPD to temporarily reject sessions of
-clients it has not seen before to check if they come from a real MX rather than scripts.
+clients it has not seen before. Unlike many implementations, this one is SPF-aware so it
+will properly handle greylisting for domains doing relaying through multiple MX, as long
+as they publish a valid SPF record.
+
+This initial version is a proof of concept, it does not persist state outside of memory,
+and might suffer from bugs.
+
+Do not use in production (yet).
 
 
 ## Features
 The filter currently supports:
 
-- SPF-aware greylisting
-
+- IP address greylisting
+- SPF greylisting
+- renewed whitelisting
 
 
 ## Dependencies
@@ -30,7 +38,7 @@ $
 
 Alternatively, clone the repository, build and install the filter:
 ```
-$ cd filter-greylisting/
+$ cd filter-greylist/
 $ go build
 $ doas install -m 0555 filter-greylist /usr/local/libexec/smtpd/filter-greylist
 ```
@@ -45,3 +53,9 @@ filter "greylist" proc-exec "filter-greylist"
 
 listen on all filter "greylist"
 ```
+
+It is possible to tweak the greylisting parameters, here listed with default values in seconds:
+
+- `-passtime 300` accept greylisting retries only after 5 minutes from initial attempt
+- `-greyexp 14400` expire greylisting attempts after 4 hours without a retry
+- `-whiteexp 2592000` expire whitelisting after 30 days without any attempt at delivery
