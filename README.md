@@ -30,7 +30,7 @@ $
 
 Alternatively, clone the repository, build and install the filter:
 ```
-$ cd filter-greylisting/
+$ cd filter-greylist/
 $ go build
 $ doas install -m 0555 filter-greylist /usr/local/libexec/smtpd/filter-greylist
 ```
