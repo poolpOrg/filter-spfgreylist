@@ -6,10 +6,9 @@ clients it has not seen before. Unlike many implementations, this one is SPF-awa
 will properly handle greylisting for domains doing relaying through multiple MX, as long
 as they publish a valid SPF record.
 
-This initial version is a proof of concept, it does not persist state outside of memory,
-and might suffer from bugs.
+**This initial version is a proof of concept, it does not persist state outside of memory, and might suffer from bugs.**
 
-Do not use in production (yet).
+**Do not use in production (yet).**
 
 
 ## Features
