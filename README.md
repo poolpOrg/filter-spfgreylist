@@ -27,16 +27,7 @@ It requires OpenSMTPD 6.6.0 or higher.
 
 
 ## How to install
-Install from your operating system's preferred package manager if available.
-On OpenBSD:
-```
-$ doas pkg_add opensmtpd-filter-greylisting
-quirks-3.167 signed on 2019-08-11T14:18:58Z
-opensmtpd-filter-greylisting-0.1.x: ok
-$
-```
-
-Alternatively, clone the repository, build and install the filter:
+Clone the repository, build and install the filter:
 ```
 $ cd filter-greylist/
 $ go build
