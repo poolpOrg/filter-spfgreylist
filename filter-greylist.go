@@ -64,6 +64,8 @@ var whiteexp	*int64
 var ip_wl	*string
 var domain_wl	*string
 
+var version	string
+
 var reporters = map[string]func(*session, []string){
 	"link-connect":    linkConnect,
 	"link-disconnect": linkDisconnect,
@@ -74,6 +76,24 @@ var reporters = map[string]func(*session, []string){
 
 var filters = map[string]func(*session, []string){
 	"rcpt-to":	rcptTo,
+}
+
+func proceed(sessid string, token string) {
+	tmp := strings.Split(version, ".")
+	if tmp[0] != "0" || tmp[1] >= "5" {
+		fmt.Printf("filter-result|%s|%s|proceed\n", sessid, token)
+	} else {
+		fmt.Printf("filter-result|%s|%s|proceed\n", token, sessid)
+	}
+}
+
+func reject(sessid string, token string) {
+	tmp := strings.Split(version, ".")
+	if tmp[0] != "0" || tmp[1] >= "5" {
+		fmt.Printf("filter-result|%s|%s|reject|451 greylisted, try again later\n", sessid, token)
+	} else {
+		fmt.Printf("filter-result|%s|%s|reject|451 greylisted, try again later\n", token, sessid)
+	}
 }
 
 func linkConnect(s *session, params []string) {
@@ -158,7 +178,7 @@ func rcptTo(s *session, params []string) {
 
 	if s.ok {
 		fmt.Fprintf(os.Stderr, "session is whitelisted\n")
-		fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
+		proceed(s.id, token)
 		return
 	}
 
@@ -169,7 +189,7 @@ func rcptTo(s *session, params []string) {
 	if val, ok := whitelist_src[key]; ok {
 		if s.tm - val < *whiteexp {
 			fmt.Fprintf(os.Stderr, "IP address %s is whitelisted\n", s.ip.String())
-			fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
+			proceed(s.id, token)
 			whitelist_src[key] = s.tm
 			return
 		}
@@ -182,7 +202,7 @@ func rcptTo(s *session, params []string) {
 	if val, ok := whitelist_domain[key]; ok {
 		if s.tm - val < *whiteexp {
 			fmt.Fprintf(os.Stderr, "domain %s is whitelisted\n", s.fromDomain)
-			fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
+			proceed(s.id, token)
 			whitelist_domain[key] = s.tm
 			return
 		}
@@ -208,7 +228,7 @@ func spfResolve(s *session, token string) {
 			delta := s.tm - val
 			if val != s.tm && delta < *greyexp && delta > *passtime {
 				fmt.Fprintf(os.Stderr, "IP %s added to whitelist\n", s.ip.String())
-				fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
+				proceed(s.id, token)
 				key = fmt.Sprintf("ip=%s", s.ip.String())
 
 				wl_src_mux.Lock()
@@ -222,7 +242,7 @@ func spfResolve(s *session, token string) {
 			fmt.Fprintf(os.Stderr, "IP %s added to greylist\n", s.ip.String())
 		}
 		greylist_src[key] = s.tm
-		fmt.Printf("filter-result|%s|%s|reject|451 greylisted, try again later\n", token, s.id)
+		reject(s.id, token)
 		return
 	}		
 
@@ -233,7 +253,7 @@ func spfResolve(s *session, token string) {
 		delta := s.tm - val
 		if val != s.tm && delta < *greyexp && delta > *passtime {
 			fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", s.fromDomain)
-			fmt.Printf("filter-result|%s|%s|proceed\n", token, s.id)
+			proceed(s.id, token)
 			key = fmt.Sprintf("domain=%s", s.fromDomain)
 
 			wl_dom_mux.Lock()
@@ -247,7 +267,7 @@ func spfResolve(s *session, token string) {
 		fmt.Fprintf(os.Stderr, "domain %s added to greylist\n", s.fromDomain)
 	}
 	greylist_domain[key] = s.tm
-	fmt.Printf("filter-result|%s|%s|reject|451 greylisted, try again later\n", token, s.id)
+	reject(s.id, token)
 	return
 }
 
@@ -399,6 +419,8 @@ func main() {
 		if len(atoms) < 6 {
 			os.Exit(1)
 		}
+
+		version = atoms[1]
 
 		switch atoms[0] {
 		case "report":
