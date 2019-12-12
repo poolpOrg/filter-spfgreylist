@@ -44,6 +44,7 @@ type session struct {
 	rcptTo	 string
 
 	ok	 bool
+	local_sender	 bool
 }
 var sessions = make(map[string]*session)
 
@@ -72,6 +73,7 @@ var reporters = map[string]func(*session, []string){
 	"link-identify":   linkIdentify,
 	"link-auth":       linkAuth,
 	"tx-mail":	   txMail,
+	"tx-rcpt":	   txRcpt,
 }
 
 var filters = map[string]func(*session, []string){
@@ -114,6 +116,7 @@ func linkConnect(s *session, params []string) {
 	if s.ip == nil {
 		fmt.Fprintf(os.Stderr, "connection from local socket, session whitelisted\n")
 		s.ok = true
+		s.local_sender = true
 		return
 	}
 
@@ -146,6 +149,7 @@ func linkAuth(s *session, params []string) {
 
 	// no greylisting for authenticated sessions
 	s.ok = true
+	s.local_sender = true
 }
 
 func txMail(s *session, params []string) {
@@ -166,6 +170,32 @@ func txMail(s *session, params []string) {
 		domain = tmp[1]
 	}
 	s.fromDomain = domain
+}
+
+func txRcpt(s *session, params []string) {
+	if len(params) != 3 {
+		log.Fatal("invalid input, shouldn't happen")
+	}
+
+	if ! s.local_sender {
+		return
+	}
+
+	if params[2] != "ok" {
+		return
+	}
+
+	tmp := strings.Split(params[1], "@")
+	if len(tmp) == 1 {
+		return
+	}
+	domain := tmp[1]
+
+	key := fmt.Sprintf("domain=%s", domain)
+	fmt.Fprintf(os.Stderr, "domain %s is whitelisted\n", domain)
+	wl_dom_mux.Lock()
+	whitelist_domain[key] = s.tm
+	wl_dom_mux.Unlock()
 }
 
 func rcptTo(s *session, params []string) {
