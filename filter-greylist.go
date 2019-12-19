@@ -67,6 +67,8 @@ var domain_wl	*string
 
 var version	string
 
+var outputChannel chan string
+
 var reporters = map[string]func(*session, []string){
 	"link-connect":    linkConnect,
 	"link-disconnect": linkDisconnect,
@@ -80,22 +82,25 @@ var filters = map[string]func(*session, []string){
 	"rcpt-to":	rcptTo,
 }
 
-func proceed(sessid string, token string) {
-	tmp := strings.Split(version, ".")
-	if tmp[0] != "0" || tmp[1] >= "5" {
-		fmt.Printf("filter-result|%s|%s|proceed\n", sessid, token)
+func produceOutput(msgType string, sessionId string, token string, format string, a ...interface{}) {
+	var out string
+
+	if version < "0.5" {
+		out = msgType + "|" + token + "|" + sessionId
 	} else {
-		fmt.Printf("filter-result|%s|%s|proceed\n", token, sessid)
+		out = msgType + "|" + sessionId + "|" + token
 	}
+	out += "|" + fmt.Sprintf(format, a...)
+
+	outputChannel <- out
+}
+
+func proceed(sessid string, token string) {
+	produceOutput("filter-result", sessid, token, "proceed")
 }
 
 func reject(sessid string, token string) {
-	tmp := strings.Split(version, ".")
-	if tmp[0] != "0" || tmp[1] >= "5" {
-		fmt.Printf("filter-result|%s|%s|reject|451 greylisted, try again later\n", sessid, token)
-	} else {
-		fmt.Printf("filter-result|%s|%s|reject|451 greylisted, try again later\n", token, sessid)
-	}
+	produceOutput("filter-result", sessid, token, "reject|451 greylisted, try again later")
 }
 
 func linkConnect(s *session, params []string) {
@@ -439,6 +444,13 @@ func main() {
 	skipConfig(scanner)
 
 	filterInit()
+
+	outputChannel = make(chan string)
+	go func() {
+		for line := range outputChannel {
+			fmt.Println(line)
+		}
+	}()
 
 	for {
 		if !scanner.Scan() {
