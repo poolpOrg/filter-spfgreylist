@@ -158,15 +158,29 @@ func linkAuth(s *session, params []string) {
 }
 
 func txMail(s *session, params []string) {
-	if len(params) != 3 {
+	if len(params) < 3 {
 		log.Fatal("invalid input, shouldn't happen")
 	}
 
-	if params[2] != "ok" {
+	var status string
+	var mailaddr string
+
+	if version < "0.6" {
+		_ = params[0]
+		mailaddr = strings.Join(params[1:len(params)-1], "|")
+		status = params[len(params)-1]
+	} else {
+		fmt.Fprintf(os.Stderr, "txMail: new Format\n")
+		_ = params[0]
+		status = params[1]
+		mailaddr = strings.Join(params[2:], "|")
+	}
+
+	if status != "ok" {
 		return
 	}
 
-	s.mailFrom = params[1]
+	s.mailFrom = mailaddr
 	domain := s.mailFrom
 	tmp := strings.Split(s.mailFrom, "@")
 	if len(tmp) == 1 {
@@ -178,19 +192,33 @@ func txMail(s *session, params []string) {
 }
 
 func txRcpt(s *session, params []string) {
-	if len(params) != 3 {
+	if len(params) < 3 {
 		log.Fatal("invalid input, shouldn't happen")
+	}
+
+	var status string
+	var mailaddr string
+
+	if version < "0.6" {
+		_ = params[0]
+		mailaddr = strings.Join(params[1:len(params)-1], "|")
+		status = params[len(params)-1]
+	} else {
+		fmt.Fprintf(os.Stderr, "txMail: new Format\n")
+		_ = params[0]
+		status = params[1]
+		mailaddr = strings.Join(params[2:], "|")
 	}
 
 	if ! s.local_sender {
 		return
 	}
 
-	if params[2] != "ok" {
+	if status != "ok" {
 		return
 	}
 
-	tmp := strings.Split(params[1], "@")
+	tmp := strings.Split(mailaddr, "@")
 	if len(tmp) == 1 {
 		return
 	}
@@ -204,12 +232,12 @@ func txRcpt(s *session, params []string) {
 }
 
 func rcptTo(s *session, params []string) {
-	if len(params) != 2 {
+	if len(params) < 2 {
 		log.Fatal("invalid input, shouldn't happen")
 	}
 
 	token := params[0]
-	s.rcptTo = params[1]
+	s.rcptTo = strings.Join(params[1:], "|")
 
 	if s.ok {
 		fmt.Fprintf(os.Stderr, "session is whitelisted\n")
