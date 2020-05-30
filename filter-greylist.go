@@ -263,10 +263,13 @@ func rcptTo(s *session, params []string) {
 	key = fmt.Sprintf("domain=%s", s.fromDomain)
 	if val, ok := whitelist_domain[key]; ok {
 		if s.tm - val < *whiteexp {
-			fmt.Fprintf(os.Stderr, "domain %s is whitelisted\n", s.fromDomain)
-			proceed(s.id, token)
-			whitelist_domain[key] = s.tm
-			return
+			res, _ := spf.CheckHostWithSender(s.ip, s.heloName, s.mailFrom)
+			if (res == "pass") {
+				fmt.Fprintf(os.Stderr, "domain %s is whitelisted\n", s.fromDomain)
+				proceed(s.id, token)
+				whitelist_domain[key] = s.tm
+				return
+			}
 		}
 	}
 
