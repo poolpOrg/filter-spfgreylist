@@ -64,6 +64,7 @@ var greyexp	*int64
 var whiteexp	*int64
 var ip_wl	*string
 var domain_wl	*string
+var spfdomainwl *bool
 
 var version	string
 
@@ -314,26 +315,34 @@ func spfResolve(s *session, token string) {
 	gl_dom_mux.Lock()
 	defer gl_dom_mux.Unlock()
 	key := fmt.Sprintf("domain=%s:%s:%s", s.fromDomain, s.mailFrom, s.rcptTo)
-	if val, ok := greylist_domain[key]; ok {
-		delta := s.tm - val
-		if val != s.tm && delta < *greyexp && delta > *passtime {
-			fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", s.fromDomain)
-			proceed(s.id, token)
-			key = fmt.Sprintf("domain=%s", s.fromDomain)
-
-			wl_dom_mux.Lock()
-			defer wl_dom_mux.Unlock()
-
-			whitelist_domain[key] = s.tm
-			s.ok = true
+	domain2whitelist := false
+	if ! spfdomainwl {
+		if val, ok := greylist_domain[key]; ok {
+			delta := s.tm - val
+			if val != s.tm && delta < *greyexp && delta > *passtime {
+				domain2whitelist := true
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "domain %s added to greylist\n", s.fromDomain)
+		}
+		if ! domain2whitelist {
+			greylist_domain[key] = s.tm
+			reject(s.id, token)
 			return
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "domain %s added to greylist\n", s.fromDomain)
 	}
-	greylist_domain[key] = s.tm
-	reject(s.id, token)
-	return
+	if spfdomainwl || domain2whitelist {
+		fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", s.fromDomain)
+		proceed(s.id, token)
+		key = fmt.Sprintf("domain=%s", s.fromDomain)
+
+		wl_dom_mux.Lock()
+		defer wl_dom_mux.Unlock()
+
+		whitelist_domain[key] = s.tm
+		s.ok = true
+		return
+	}
 }
 
 func filterInit() {
@@ -463,6 +472,7 @@ func main() {
 	whiteexp  = flag.Int64("whiteexp", 30*86400, "number of seconds before whitelists expire (default: 30 days)")
 	ip_wl     = flag.String("wl-ip", "", "filename containing a list of IP addresses to whitelist, one per line")
 	domain_wl = flag.String("wl-domain", "", "filename containing a list of sender domains to whitelist, one per line")
+	spfdomainwl = flag.String("spfdomainwl", false, "when =true enable domains with valid SPF autowhitelist mode (default: false)")
 
 	flag.Parse()
 
