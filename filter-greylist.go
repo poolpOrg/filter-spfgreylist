@@ -50,6 +50,7 @@ var sessions = make(map[string]*session)
 
 var whitelist_src = make(map[string]int64)
 var whitelist_domain = make(map[string]int64)
+var whitelist_domain_static = []string{}
 var wl_src_mux sync.Mutex
 var wl_dom_mux sync.Mutex
 
@@ -261,6 +262,14 @@ func rcptTo(s *session, params []string) {
 	defer wl_dom_mux.Unlock()
 
 	key = fmt.Sprintf("domain=%s", s.fromDomain)
+	// if domain is in whitelist file from cmdline then proceed
+	for _, item := range whitelist_domain_static {
+		if item == key {
+			fmt.Fprintf(os.Stderr, "domain %s is whitelisted in %s\n", s.fromDomain, *domain_wl)
+			proceed(s.id, token)
+			return
+		}
+	}
 	if val, ok := whitelist_domain[key]; ok {
 		if s.tm - val < *whiteexp {
 			res, _ := spf.CheckHostWithSender(s.ip, s.heloName, s.mailFrom)
@@ -406,7 +415,7 @@ func loadWhitelists() {
 		for scanner.Scan() {
 			fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", scanner.Text())
 			key := fmt.Sprintf("domain=%s", scanner.Text())
-			whitelist_domain[key] = now
+			whitelist_domain_static = append(whitelist_domain_static, key)
 		}
 	
 		if err := scanner.Err(); err != nil {
