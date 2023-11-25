@@ -1,4 +1,4 @@
-# filter-greylist
+# filter-spfgreylist
 
 ## Description
 This filter implements greylisting, allowing OpenSMTPD to temporarily reject sessions of
@@ -29,9 +29,9 @@ It requires OpenSMTPD 6.6.0 or higher.
 ## How to install
 Clone the repository, build and install the filter:
 ```
-$ cd filter-greylist/
+$ cd filter-spfgreylist/
 $ go build
-$ doas install -m 0555 filter-greylist /usr/local/libexec/smtpd/filter-greylist
+$ doas install -m 0555 filter-spfgreylist /usr/local/libexec/smtpd/filter-spfgreylist
 ```
 
 
@@ -40,7 +40,7 @@ The filter itself requires no configuration.
 
 It must be declared in smtpd.conf and attached to a listener for sessions to go through greylisting:
 ```
-filter "greylist" proc-exec "filter-greylist"
+filter "greylist" proc-exec "filter-spfgreylist"
 
 listen on all filter "greylist"
 ```
