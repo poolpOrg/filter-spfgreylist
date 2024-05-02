@@ -29,6 +29,7 @@ import (
 	"log"
 
 	"blitiri.com.ar/go/spf"
+	"github.com/poolpOrg/OpenSMTPD-framework/filter"
 )
 
 type session struct {
@@ -66,122 +67,51 @@ var whiteexp *int64
 var ip_wl *string
 var domain_wl *string
 
-var version string
+func linkConnectCb(timestamp time.Time, sessionId string, rdns string, fcrdns string, src net.Addr, dest net.Addr) {
+	s := &session{}
+	s.id = sessionId
+	sessions[s.id] = s
 
-var outputChannel chan string
-
-var reporters = map[string]func(*session, []string){
-	"link-connect":    linkConnect,
-	"link-disconnect": linkDisconnect,
-	"link-identify":   linkIdentify,
-	"link-auth":       linkAuth,
-	"tx-mail":         txMail,
-	"tx-rcpt":         txRcpt,
-}
-
-var filters = map[string]func(*session, []string){
-	"rcpt-to": rcptTo,
-}
-
-func produceOutput(msgType string, sessionId string, token string, format string, a ...interface{}) {
-	var out string
-
-	if version < "0.5" {
-		out = msgType + "|" + token + "|" + sessionId
-	} else {
-		out = msgType + "|" + sessionId + "|" + token
-	}
-	out += "|" + fmt.Sprintf(format, a...)
-
-	outputChannel <- out
-}
-
-func proceed(sessid string, token string) {
-	produceOutput("filter-result", sessid, token, "proceed")
-}
-
-func reject(sessid string, token string) {
-	produceOutput("filter-result", sessid, token, "reject|451 greylisted, try again later")
-}
-
-func linkConnect(s *session, params []string) {
-	if len(params) != 4 {
-		log.Fatal("invalid input, shouldn't happen")
-	}
-
-	s.tm = int64(time.Now().Unix())
-	src := params[2]
-	tmp := strings.Split(src, ":")
-	tmp = tmp[0 : len(tmp)-1]
-	src = strings.Join(tmp, ":")
-	if strings.HasPrefix(src, "[") {
-		src = src[1 : len(src)-1]
-	}
-
-	s.ip = net.ParseIP(src)
-	if s.ip == nil {
+	if addr, ok := src.(*net.TCPAddr); !ok {
 		fmt.Fprintf(os.Stderr, "connection from local socket, session whitelisted\n")
 		s.ok = true
 		s.local_sender = true
+	} else {
+		s.ip = addr.IP
+		fmt.Fprintf(os.Stderr, "connection received from src %s\n", s.ip.String())
+	}
+}
+
+func linkDisconnectCb(timestamp time.Time, sessionId string) {
+	delete(sessions, sessionId)
+}
+
+func linkIdentifyCb(timestamp time.Time, sessionId string, method string, identity string) {
+	s := sessions[sessionId]
+	s.heloName = identity
+}
+
+func linkAuthCb(timestamp time.Time, sessionId string, result string, username string) {
+	if result != "pass" {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "connection received from src %s\n", s.ip.String())
-}
-
-func linkDisconnect(s *session, params []string) {
-	if len(params) != 0 {
-		log.Fatal("invalid input, shouldn't happen")
-	}
-	delete(sessions, s.id)
-}
-
-func linkIdentify(s *session, params []string) {
-	if len(params) != 2 {
-		log.Fatal("invalid input, shouldn't happen: %r", params)
-	}
-	s.heloName = params[1]
-}
-
-func linkAuth(s *session, params []string) {
-	if len(params) != 2 {
-		log.Fatal("invalid input, shouldn't happen")
-	}
-	if params[1] != "pass" {
-		return
-	}
-
-	s.userName = params[0]
+	s := sessions[sessionId]
+	s.userName = username
 
 	// no greylisting for authenticated sessions
 	s.ok = true
 	s.local_sender = true
 }
 
-func txMail(s *session, params []string) {
-	if len(params) < 3 {
-		log.Fatal("invalid input, shouldn't happen")
-	}
-
-	var status string
-	var mailaddr string
-
-	if version < "0.6" {
-		_ = params[0]
-		mailaddr = strings.Join(params[1:len(params)-1], "|")
-		status = params[len(params)-1]
-	} else {
-		_ = params[0]
-		status = params[1]
-		mailaddr = strings.Join(params[2:], "|")
-	}
-
-	if status != "ok" {
+func txMailCb(timestamp time.Time, sessionId string, messageId string, result string, from string) {
+	if result != "ok" {
 		return
 	}
 
-	s.mailFrom = mailaddr
-	domain := s.mailFrom
+	var domain string
+	s := sessions[sessionId]
+	s.mailFrom = from
 	tmp := strings.Split(s.mailFrom, "@")
 	if len(tmp) == 1 {
 		domain = s.heloName
@@ -191,34 +121,17 @@ func txMail(s *session, params []string) {
 	s.fromDomain = domain
 }
 
-func txRcpt(s *session, params []string) {
-	if len(params) < 3 {
-		log.Fatal("invalid input, shouldn't happen")
+func txRcptCb(timestamp time.Time, sessionId string, messageId string, result string, to string) {
+	if result != "ok" {
+		return
 	}
 
-	var status string
-	var mailaddr string
-
-	if version < "0.6" {
-		_ = params[0]
-		mailaddr = strings.Join(params[1:len(params)-1], "|")
-		status = params[len(params)-1]
-	} else {
-		fmt.Fprintf(os.Stderr, "txMail: new Format\n")
-		_ = params[0]
-		status = params[1]
-		mailaddr = strings.Join(params[2:], "|")
-	}
-
+	s := sessions[sessionId]
 	if !s.local_sender {
 		return
 	}
 
-	if status != "ok" {
-		return
-	}
-
-	tmp := strings.Split(mailaddr, "@")
+	tmp := strings.Split(to, "@")
 	if len(tmp) == 1 {
 		return
 	}
@@ -231,18 +144,12 @@ func txRcpt(s *session, params []string) {
 	wl_dom_mux.Unlock()
 }
 
-func rcptTo(s *session, params []string) {
-	if len(params) < 2 {
-		log.Fatal("invalid input, shouldn't happen")
-	}
-
-	token := params[0]
-	s.rcptTo = strings.Join(params[1:], "|")
-
+func rcptTo(timestamp time.Time, sessionId string, to string) filter.Response {
+	s := sessions[sessionId]
+	s.rcptTo = to
 	if s.ok {
 		fmt.Fprintf(os.Stderr, "session is whitelisted\n")
-		proceed(s.id, token)
-		return
+		return filter.Proceed()
 	}
 
 	wl_src_mux.Lock()
@@ -252,9 +159,8 @@ func rcptTo(s *session, params []string) {
 	if val, ok := whitelist_src[key]; ok {
 		if s.tm-val < *whiteexp {
 			fmt.Fprintf(os.Stderr, "IP address %s is whitelisted\n", s.ip.String())
-			proceed(s.id, token)
 			whitelist_src[key] = s.tm
-			return
+			return filter.Proceed()
 		}
 	}
 
@@ -266,8 +172,7 @@ func rcptTo(s *session, params []string) {
 	for _, item := range whitelist_domain_static {
 		if item == key {
 			fmt.Fprintf(os.Stderr, "domain %s is whitelisted in %s\n", s.fromDomain, *domain_wl)
-			proceed(s.id, token)
-			return
+			return filter.Proceed()
 		}
 	}
 	if val, ok := whitelist_domain[key]; ok {
@@ -275,18 +180,16 @@ func rcptTo(s *session, params []string) {
 			res, _ := spf.CheckHostWithSender(s.ip, s.heloName, s.mailFrom)
 			if res == "pass" {
 				fmt.Fprintf(os.Stderr, "domain %s is whitelisted\n", s.fromDomain)
-				proceed(s.id, token)
 				whitelist_domain[key] = s.tm
-				return
+				return filter.Proceed()
 			}
 		}
 	}
 
-	go spfResolve(s, token)
-	return
+	return spfResolve(s)
 }
 
-func spfResolve(s *session, token string) {
+func spfResolve(s *session) filter.Response {
 
 	spfAware := false
 	res, _ := spf.CheckHostWithSender(s.ip, s.heloName, s.mailFrom)
@@ -302,7 +205,6 @@ func spfResolve(s *session, token string) {
 			delta := s.tm - val
 			if val != s.tm && delta < *greyexp && delta > *passtime {
 				fmt.Fprintf(os.Stderr, "IP %s added to whitelist\n", s.ip.String())
-				proceed(s.id, token)
 				key = fmt.Sprintf("ip=%s", s.ip.String())
 
 				wl_src_mux.Lock()
@@ -310,14 +212,14 @@ func spfResolve(s *session, token string) {
 
 				whitelist_src[key] = s.tm
 				s.ok = true
-				return
+				return filter.Proceed()
+
 			}
 		} else {
 			fmt.Fprintf(os.Stderr, "IP %s added to greylist\n", s.ip.String())
 		}
 		greylist_src[key] = s.tm
-		reject(s.id, token)
-		return
+		return filter.Reject("451 greylisted, try again later")
 	}
 
 	gl_dom_mux.Lock()
@@ -327,7 +229,6 @@ func spfResolve(s *session, token string) {
 		delta := s.tm - val
 		if val != s.tm && delta < *greyexp && delta > *passtime {
 			fmt.Fprintf(os.Stderr, "domain %s added to whitelist\n", s.fromDomain)
-			proceed(s.id, token)
 			key = fmt.Sprintf("domain=%s", s.fromDomain)
 
 			wl_dom_mux.Lock()
@@ -335,24 +236,13 @@ func spfResolve(s *session, token string) {
 
 			whitelist_domain[key] = s.tm
 			s.ok = true
-			return
+			return filter.Proceed()
 		}
 	} else {
 		fmt.Fprintf(os.Stderr, "domain %s added to greylist\n", s.fromDomain)
 	}
 	greylist_domain[key] = s.tm
-	reject(s.id, token)
-	return
-}
-
-func filterInit() {
-	for k := range reporters {
-		fmt.Printf("register|report|smtp-in|%s\n", k)
-	}
-	for k := range filters {
-		fmt.Printf("register|filter|smtp-in|%s\n", k)
-	}
-	fmt.Println("register|ready")
+	return filter.Reject("451 greylisted, try again later")
 }
 
 func trigger(actions map[string]func(*session, []string), atoms []string) {
@@ -368,18 +258,6 @@ func trigger(actions map[string]func(*session, []string), atoms []string) {
 		v(s, atoms[6:])
 	} else {
 		os.Exit(1)
-	}
-}
-
-func skipConfig(scanner *bufio.Scanner) {
-	for {
-		if !scanner.Scan() {
-			os.Exit(0)
-		}
-		line := scanner.Text()
-		if line == "config|ready" {
-			return
-		}
 	}
 }
 
@@ -478,38 +356,16 @@ func main() {
 	loadWhitelists()
 	go listsManager()
 
-	scanner := bufio.NewScanner(os.Stdin)
+	filter.Init()
 
-	skipConfig(scanner)
+	filter.SMTP_IN.OnLinkConnect(linkConnectCb)
+	filter.SMTP_IN.OnLinkDisconnect(linkDisconnectCb)
+	filter.SMTP_IN.OnLinkIdentify(linkIdentifyCb)
+	filter.SMTP_IN.OnLinkAuth(linkAuthCb)
+	filter.SMTP_IN.OnTxMail(txMailCb)
+	filter.SMTP_IN.OnTxRcpt(txRcptCb)
 
-	filterInit()
+	filter.SMTP_IN.RcptToRequest(rcptTo)
 
-	outputChannel = make(chan string)
-	go func() {
-		for line := range outputChannel {
-			fmt.Println(line)
-		}
-	}()
-
-	for {
-		if !scanner.Scan() {
-			os.Exit(0)
-		}
-
-		atoms := strings.Split(scanner.Text(), "|")
-		if len(atoms) < 6 {
-			os.Exit(1)
-		}
-
-		version = atoms[1]
-
-		switch atoms[0] {
-		case "report":
-			trigger(reporters, atoms)
-		case "filter":
-			trigger(filters, atoms)
-		default:
-			os.Exit(1)
-		}
-	}
+	filter.Dispatch()
 }

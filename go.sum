@@ -1,5 +1,7 @@
 blitiri.com.ar/go/spf v1.5.1 h1:CWUEasc44OrANJD8CzceRnRn1Jv0LttY68cYym2/pbE=
 blitiri.com.ar/go/spf v1.5.1/go.mod h1:E71N92TfL4+Yyd5lpKuE9CAF2pd4JrUq1xQfkTxoNdk=
+github.com/poolpOrg/OpenSMTPD-framework v0.1.6 h1:SNxNMHL4T7P5nNsbOOi2e/30nXYdckii37aL6vBua4Q=
+github.com/poolpOrg/OpenSMTPD-framework v0.1.6/go.mod h1:e4lU170JDDT6/9XFv/Qw9+K0UU+L+T5EgXLE4n1Sgpc=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
