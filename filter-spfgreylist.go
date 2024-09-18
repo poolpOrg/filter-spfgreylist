@@ -425,7 +425,7 @@ func loadWhitelists() {
 }
 
 func listsManager() {
-	tick := time.Tick(60 * 1000 * time.Millisecond)
+	tick := time.Tick(time.Minute)
 	for {
 		select {
 		case <-tick:
