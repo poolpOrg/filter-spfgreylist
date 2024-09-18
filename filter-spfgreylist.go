@@ -126,8 +126,6 @@ func linkConnect(s *session, params []string) {
 		s.local_sender = true
 		return
 	}
-
-	fmt.Fprintf(os.Stderr, "connection received from src %s\n", s.ip.String())
 }
 
 func linkDisconnect(s *session, params []string) {
