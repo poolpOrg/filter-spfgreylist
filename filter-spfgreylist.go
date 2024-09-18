@@ -204,7 +204,6 @@ func txRcpt(s *session, params []string) {
 		mailaddr = strings.Join(params[1:len(params)-1], "|")
 		status = params[len(params)-1]
 	} else {
-		fmt.Fprintf(os.Stderr, "txMail: new Format\n")
 		_ = params[0]
 		status = params[1]
 		mailaddr = strings.Join(params[2:], "|")
