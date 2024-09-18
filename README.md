@@ -45,12 +45,13 @@ filter "greylist" proc-exec "filter-spfgreylist"
 listen on all filter "greylist"
 ```
 
-It is possible to tweak the greylisting parameters, here listed with default values in seconds:
+It is possible to tweak the greylisting parameters, here listed with default values:
 
-- `-passtime 300` accept greylisting retries only after 5 minutes from initial attempt
-- `-greyexp 14400` expire greylisting attempts after 4 hours without a retry
-- `-whiteexp 2592000` expire whitelisting after 30 days without any attempt at delivery
+- `-passtime 5m` accept greylisting retries only after 5 minutes from initial attempt
+- `-greyexp 4h` expire greylisting attempts after 4 hours without a retry
+- `-whiteexp 720h` expire whitelisting after 30 days without any attempt at delivery
 
+Valid time units are "s", "m" and "h".
 
 It is also possible to inject IP and domains in the whitelists at startup to avoid greylisting:
 
