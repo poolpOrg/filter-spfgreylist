@@ -29,6 +29,7 @@ import (
 	"log"
 
 	"blitiri.com.ar/go/spf"
+	"go.netsend.nl/ossec"
 )
 
 type session struct {
@@ -479,6 +480,13 @@ func main() {
 	whiteexp = int64(*flagWhiteexp / time.Second)
 
 	loadWhitelists()
+
+	err := ossec.PledgePromises("stdio inet dns")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pledge failed: %v\n", err)
+		os.Exit(1)
+	}
+
 	go listsManager()
 
 	scanner := bufio.NewScanner(os.Stdin)
