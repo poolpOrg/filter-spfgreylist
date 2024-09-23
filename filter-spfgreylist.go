@@ -311,9 +311,9 @@ func spfResolve(s *session, token string) {
 				return
 			}
 		} else {
+			greylist_src[key] = s.tm
 			fmt.Fprintf(os.Stderr, "IP %s added to greylist\n", s.ip.String())
 		}
-		greylist_src[key] = s.tm
 		reject(s.id, token)
 		return
 	}
@@ -336,9 +336,9 @@ func spfResolve(s *session, token string) {
 			return
 		}
 	} else {
+		greylist_domain[key] = s.tm
 		fmt.Fprintf(os.Stderr, "domain %s added to greylist\n", s.fromDomain)
 	}
-	greylist_domain[key] = s.tm
 	reject(s.id, token)
 	return
 }
