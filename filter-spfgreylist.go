@@ -126,8 +126,6 @@ func linkConnect(s *session, params []string) {
 		s.local_sender = true
 		return
 	}
-
-	fmt.Fprintf(os.Stderr, "connection received from src %s\n", s.ip.String())
 }
 
 func linkDisconnect(s *session, params []string) {
@@ -148,11 +146,11 @@ func linkAuth(s *session, params []string) {
 	if len(params) != 2 {
 		log.Fatal("invalid input, shouldn't happen")
 	}
-	if params[1] != "pass" {
+	if params[0] != "pass" {
 		return
 	}
 
-	s.userName = params[0]
+	s.userName = params[1]
 
 	// no greylisting for authenticated sessions
 	s.ok = true
@@ -313,9 +311,9 @@ func spfResolve(s *session, token string) {
 				return
 			}
 		} else {
+			greylist_src[key] = s.tm
 			fmt.Fprintf(os.Stderr, "IP %s added to greylist\n", s.ip.String())
 		}
-		greylist_src[key] = s.tm
 		reject(s.id, token)
 		return
 	}
@@ -338,9 +336,9 @@ func spfResolve(s *session, token string) {
 			return
 		}
 	} else {
+		greylist_domain[key] = s.tm
 		fmt.Fprintf(os.Stderr, "domain %s added to greylist\n", s.fromDomain)
 	}
-	greylist_domain[key] = s.tm
 	reject(s.id, token)
 	return
 }
