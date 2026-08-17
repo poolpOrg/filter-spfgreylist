@@ -146,11 +146,11 @@ func linkAuth(s *session, params []string) {
 	if len(params) != 2 {
 		log.Fatal("invalid input, shouldn't happen")
 	}
-	if params[1] != "pass" {
+	if params[0] != "pass" {
 		return
 	}
 
-	s.userName = params[0]
+	s.userName = params[1]
 
 	// no greylisting for authenticated sessions
 	s.ok = true
